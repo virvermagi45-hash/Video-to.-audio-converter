@@ -1,0 +1,188 @@
+<!DOCTYPE html>
+<html lang="hi">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Video to Audio Converter - Free Online Tool</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <script src="https://unpkg.com/@ffmpeg/ffmpeg@0.11.6/dist/ffmpeg.min.js"></script>
+</head>
+<body class="bg-gradient-to-br from-indigo-900 via-purple-900 to-slate-900 min-h-screen text-white font-sans flex flex-col justify-between">
+
+    <header class="w-full py-6 px-4 bg-black/30 backdrop-blur-md shadow-lg text-center">
+        <h1 class="text-3xl md:text-4xl font-extrabold tracking-wide text-transparent bg-clip-text bg-gradient-to-r from-teal-400 to-cyan-300">
+            🎬 Video to Audio Converter
+        </h1>
+        <p class="text-sm md:text-base text-gray-300 mt-2">Convert your MP4 videos to MP3/WAV instantly right in your browser!</p>
+    </header>
+
+    <main class="flex-grow flex items-center justify-center px-4 py-8">
+        <div class="max-w-xl w-full bg-white/10 backdrop-blur-xl border border-white/20 rounded-2xl shadow-2xl p-6 md:p-8 space-y-6">
+            
+            <div id="drop-zone" class="border-2 border-dashed border-teal-400/60 hover:border-teal-400 rounded-xl p-8 text-center cursor-pointer transition-all bg-black/20 hover:bg-black/30 group">
+                <input type="file" id="video-file-input" accept="video/*" class="hidden">
+                <div class="space-y-3 pointer-events-none">
+                    <svg class="mx-auto h-12 w-12 text-teal-400 group-hover:scale-110 transition-transform" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M7 16a4 4 0 01-.88-7.903A5 5 0 1115.9 6L16 6a5 5 0 011 9.9M15 13l-3-3m0 0l-3 3m3-3v12"></path>
+                    </svg>
+                    <p class="text-lg font-medium text-gray-200">Drag & Drop your video file here</p>
+                    <p class="text-sm text-gray-400">or <span class="text-teal-400 underline font-semibold">browse files</span> from your device</p>
+                </div>
+            </div>
+
+            <div id="file-info" class="hidden bg-black/40 p-4 rounded-xl border border-white/10 flex items-center justify-between">
+                <div class="truncate pr-2">
+                    <p class="text-xs text-gray-400">Selected Video:</p>
+                    <p id="file-name" class="text-sm font-medium text-teal-300 truncate"></p>
+                </div>
+                <button id="remove-file" class="text-red-400 hover:text-red-300 text-sm font-semibold px-2 py-1">Remove</button>
+            </div>
+
+            <div class="space-y-4">
+                <div class="flex items-center justify-between bg-black/30 p-3 rounded-xl border border-white/10">
+                    <label for="output-format" class="text-sm font-medium text-gray-300">Convert to:</label>
+                    <select id="output-format" class="bg-gray-800 text-teal-300 font-semibold px-3 py-1.5 rounded-lg border border-gray-700 focus:outline-none focus:ring-2 focus:ring-teal-400">
+                        <option value="mp3">MP3 Audio</option>
+                        <option value="wav">WAV Audio</option>
+                    </select>
+                </div>
+
+                <button id="convert-btn" disabled class="w-full py-3.5 px-4 bg-gradient-to-r from-teal-500 to-cyan-500 text-gray-900 font-bold rounded-xl shadow-lg opacity-50 cursor-not-allowed hover:opacity-90 transition-all">
+                    Convert to Audio
+                </button>
+            </div>
+
+            <div id="progress-container" class="hidden space-y-2">
+                <div class="flex justify-between text-xs text-gray-300">
+                    <span id="status-text">Processing...</span>
+                    <span id="progress-percent">0%</span>
+                </div>
+                <div class="w-full bg-gray-800 rounded-full h-2.5 overflow-hidden">
+                    <div id="progress-bar" class="bg-gradient-to-r from-teal-400 to-cyan-400 h-2.5 w-0 transition-all duration-150"></div>
+                </div>
+            </div>
+
+            <div id="download-section" class="hidden text-center space-y-3 pt-2">
+                <p class="text-sm text-green-400 font-medium">✨ Conversion Complete!</p>
+                <a id="download-link" download="converted-audio.mp3" class="inline-block w-full py-3 px-4 bg-green-500 hover:bg-green-600 text-white font-bold rounded-xl shadow-lg transition-all text-center">
+                    Download Audio File 🎵
+                </a>
+            </div>
+
+        </div>
+    </main>
+
+    <footer class="w-full py-4 text-center text-xs text-gray-400 bg-black/30 border-t border-white/10">
+        <p>&copy; 2026 Video to Audio Converter</p>
+    </footer>
+
+    <script>
+        const { createFFmpeg, fetchFile } = FFmpeg;
+        const ffmpeg = createFFmpeg({ log: true });
+
+        const dropZone = document.getElementById('drop-zone');
+        const fileInput = document.getElementById('video-file-input');
+        const fileInfo = document.getElementById('file-info');
+        const fileName = document.getElementById('file-name');
+        const removeFileBtn = document.getElementById('remove-file');
+        const convertBtn = document.getElementById('convert-btn');
+        const outputFormat = document.getElementById('output-format');
+        const progressContainer = document.getElementById('progress-container');
+        const progressBar = document.getElementById('progress-bar');
+        const progressPercent = document.getElementById('progress-percent');
+        const statusText = document.getElementById('status-text');
+        const downloadSection = document.getElementById('download-section');
+        const downloadLink = document.getElementById('download-link');
+
+        let selectedFile = null;
+
+        dropZone.addEventListener('click', () => fileInput.click());
+
+        fileInput.addEventListener('change', (e) => {
+            if (e.target.files.length > 0) handleFile(e.target.files[0]);
+        });
+
+        dropZone.addEventListener('dragover', (e) => { e.preventDefault(); dropZone.classList.add('border-teal-400', 'bg-black/40'); });
+        dropZone.addEventListener('dragleave', () => { dropZone.classList.remove('border-teal-400', 'bg-black/40'); });
+        dropZone.addEventListener('drop', (e) => {
+            e.preventDefault();
+            dropZone.classList.remove('border-teal-400', 'bg-black/40');
+            if (e.dataTransfer.files.length > 0) handleFile(e.dataTransfer.files[0]);
+        });
+
+        function handleFile(file) {
+            if (!file.type.startsWith('video/')) { alert('Please upload a valid video file!'); return; }
+            selectedFile = file;
+            fileName.textContent = file.name;
+            fileInfo.classList.remove('hidden');
+            dropZone.classList.add('hidden');
+            convertBtn.disabled = false;
+            convertBtn.classList.remove('opacity-50', 'cursor-not-allowed');
+            downloadSection.classList.add('hidden');
+        }
+
+        removeFileBtn.addEventListener('click', () => {
+            selectedFile = null;
+            fileInput.value = '';
+            fileInfo.classList.add('hidden');
+            dropZone.classList.remove('hidden');
+            convertBtn.disabled = true;
+            convertBtn.classList.add('opacity-50', 'cursor-not-allowed');
+            downloadSection.classList.add('hidden');
+        });
+
+        convertBtn.addEventListener('click', async () => {
+            if (!selectedFile) return;
+            convertBtn.disabled = true;
+            convertBtn.classList.add('opacity-50', 'cursor-not-allowed');
+            progressContainer.classList.remove('hidden');
+            downloadSection.classList.add('hidden');
+
+            try {
+                if (!ffmpeg.isLoaded()) {
+                    statusText.textContent = 'Loading converter engine...';
+                    await ffmpeg.load();
+                }
+
+                statusText.textContent = 'Reading video file...';
+                const format = outputFormat.value;
+                const inputName = 'input_video';
+                const outputName = `output_audio.${format}`;
+
+                ffmpeg.FS('writeFile', inputName, await fetchFile(selectedFile));
+
+                ffmpeg.setProgress(({ ratio }) => {
+                    const percent = Math.round(ratio * 100);
+                    progressBar.style.width = `${percent}%`;
+                    progressPercent.textContent = `${percent}%`;
+                    statusText.textContent = `Converting... ${percent}%`;
+                });
+
+                statusText.textContent = 'Extracting audio...';
+                await ffmpeg.run('-i', inputName, '-vn', '-ab', '192k', outputName);
+
+                statusText.textContent = 'Preparing download...';
+                const data = ffmpeg.FS('readFile', outputName);
+
+                const blob = new Blob([data.buffer], { type: format === 'mp3' ? 'audio/mp3' : 'audio/wav' });
+                const url = URL.createObjectURL(blob);
+
+                downloadLink.href = url;
+                downloadLink.download = `${selectedFile.name.substring(0, selectedFile.name.lastIndexOf('.')) || 'audio'}.${format}`;
+                
+                progressContainer.classList.add('hidden');
+                downloadSection.classList.remove('hidden');
+                convertBtn.disabled = false;
+                convertBtn.classList.remove('opacity-50', 'cursor-not-allowed');
+
+            } code (error) {
+                console.error(error);
+                alert('An error occurred during conversion.');
+                progressContainer.classList.add('hidden');
+                convertBtn.disabled = false;
+                convertBtn.classList.remove('opacity-50', 'cursor-not-allowed');
+            }
+        });
+    </script>
+</body>
+</html>
